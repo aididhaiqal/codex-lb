@@ -79,7 +79,9 @@ def openai_status_api_note(state: OpenAIStatusState) -> str | None:
     if state.stale or state.snapshot is None:
         return None
     snapshot = state.snapshot
-    if not snapshot.degraded:
+    # Key on API/Codex-scoped degradation, not the overall Statuspage rollup: a
+    # ChatGPT-web-only incident must never annotate the proxy's upstream errors.
+    if not snapshot.api_degraded:
         return None
     incident = snapshot.api_incident()
     if incident is not None:

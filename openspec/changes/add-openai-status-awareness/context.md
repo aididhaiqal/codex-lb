@@ -34,9 +34,23 @@ banner and the downstream error annotation both read the same cached snapshot.
   it age past the staleness threshold (default 180s ≈ three missed 60s polls),
   so a dead scheduler self-heals into "stale" without a separate failure flag.
 
-- **Component-aware gating.** Only components/incidents whose name mentions "api"
-  (API, Responses API, Realtime API, …) count; ChatGPT-web-only incidents are
+- **API/Codex relevance, excluding ChatGPT.** A component/incident is relevant
+  only when its name mentions "api" or "codex" but NOT "chatgpt" (the exclusion
+  wins even when "codex" is present). So `Codex API`, `API`, `Responses API`,
+  `Realtime API`, `Compliance API` are relevant; `Codex in ChatGPT Desktop`,
+  `ChatGPT Work`, `Conversations`, `Sites`, `Agent`, `Batch`, `Embeddings` are
   ignored so a consumer-web outage is never attributed to the proxy's upstream.
+
+- **Key on an API/Codex-scoped signal, not the overall rollup.** OpenAI's
+  Statuspage `indicator` rolls up all surfaces, so a ChatGPT-web-only incident
+  makes it `minor`/`major`. Both the banner and the error annotation instead key
+  on `snapshot.api_degraded` (a relevant incident exists OR a relevant component
+  is non-operational) with a separate `api_indicator` = worst of relevant
+  incident impacts and component statuses. The endpoint exposes this as
+  `apiAffected`/`apiIndicator`/`apiIncident`/`apiComponent`; the raw overall
+  `indicator`/`description` remain in the payload as informational only. Component
+  statuses map onto the severity scale as degraded_performance→minor,
+  partial_outage→major, major_outage→critical.
 
 ## Failure modes
 

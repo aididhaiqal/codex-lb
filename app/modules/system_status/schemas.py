@@ -21,10 +21,17 @@ class SystemStatusIncidentResponse(DashboardModel):
 
 
 class SystemStatusResponse(DashboardModel):
-    # ``indicator`` is the Statuspage overall indicator (none/minor/major/critical)
-    # or "unknown" when the proxy has not fetched a snapshot yet.
+    # ``indicator``/``description`` are the Statuspage overall rollup across all
+    # OpenAI surfaces (none/minor/major/critical, or "unknown" before the first
+    # poll) and are informational only. codex-lb keys presentation on the
+    # ``api_*`` fields, which are scoped to API/Codex surfaces.
     indicator: str
     description: str
+    # API/Codex-scoped signal (excludes ChatGPT-web surfaces).
+    api_affected: bool
+    api_indicator: str
+    api_incident: SystemStatusIncidentResponse | None = None
+    api_component: SystemStatusComponentResponse | None = None
     components: list[SystemStatusComponentResponse]
     incidents: list[SystemStatusIncidentResponse]
     updated_at: datetime | None

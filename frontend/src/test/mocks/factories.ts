@@ -792,6 +792,10 @@ export function createSystemStatus(overrides: Partial<SystemStatus> = {}): Syste
 	return SystemStatusSchema.parse({
 		indicator: "none",
 		description: "All Systems Operational",
+		apiAffected: false,
+		apiIndicator: "none",
+		apiIncident: null,
+		apiComponent: null,
 		components: [],
 		incidents: [],
 		updatedAt: "2026-07-13T12:00:00Z",

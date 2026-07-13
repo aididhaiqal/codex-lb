@@ -22,17 +22,30 @@ _DEGRADED_INDICATORS = frozenset({"minor", "major", "critical"})
 # (degraded_performance, partial_outage, major_outage) is a degradation.
 _OPERATIONAL_COMPONENT_STATUSES = frozenset({"operational", "under_maintenance"})
 
-# A component is relevant to the Responses/Codex API path when its name mentions
-# "api" (covers "API", "Responses API", "Realtime API", ...). ChatGPT-web-only
-# components (e.g. "ChatGPT") do not match and are intentionally ignored so a
-# consumer-web-only incident never gets attributed to the proxy's upstream.
-_API_COMPONENT_KEYWORD = "api"
+# A component/incident is relevant to codex-lb's Responses/Codex upstream when
+# its name mentions "api" or "codex" but NOT "chatgpt". So "API", "Codex API",
+# "Responses API", "Realtime API" are relevant, while ChatGPT-web surfaces such
+# as "Codex in ChatGPT Desktop", "ChatGPT Work", "Conversations", "Sites", and
+# "Agent" are ignored so a consumer-web incident is never attributed to the
+# proxy's upstream. The "chatgpt" exclusion wins even when "codex" is present.
+_RELEVANT_COMPONENT_KEYWORDS = ("api", "codex")
+_EXCLUDED_COMPONENT_KEYWORD = "chatgpt"
 
 _IMPACT_RANK = {"none": 0, "minor": 1, "major": 2, "critical": 3}
+_RANK_INDICATOR = {0: "none", 1: "minor", 2: "major", 3: "critical"}
+# Statuspage component statuses ranked onto the indicator severity scale.
+_COMPONENT_STATUS_RANK = {
+    "degraded_performance": 1,
+    "partial_outage": 2,
+    "major_outage": 3,
+}
 
 
-def _mentions_api(name: str) -> bool:
-    return _API_COMPONENT_KEYWORD in name.lower()
+def _is_api_or_codex(name: str) -> bool:
+    lowered = name.lower()
+    if _EXCLUDED_COMPONENT_KEYWORD in lowered:
+        return False
+    return any(keyword in lowered for keyword in _RELEVANT_COMPONENT_KEYWORDS)
 
 
 @dataclass(frozen=True, slots=True)
@@ -46,8 +59,8 @@ class OpenAIStatusComponent:
         return self.status in _OPERATIONAL_COMPONENT_STATUSES
 
     @property
-    def api_relevant(self) -> bool:
-        return _mentions_api(self.name)
+    def api_or_codex_relevant(self) -> bool:
+        return _is_api_or_codex(self.name)
 
 
 @dataclass(frozen=True, slots=True)
@@ -61,8 +74,8 @@ class OpenAIStatusIncident:
     component_names: tuple[str, ...]
 
     @property
-    def affects_api(self) -> bool:
-        return any(_mentions_api(name) for name in self.component_names)
+    def affects_api_or_codex(self) -> bool:
+        return any(_is_api_or_codex(name) for name in self.component_names)
 
 
 @dataclass(frozen=True, slots=True)
@@ -75,20 +88,43 @@ class OpenAIStatusSnapshot:
 
     @property
     def degraded(self) -> bool:
+        """Overall Statuspage rollup severity (informational; spans all surfaces)."""
         return self.indicator in _DEGRADED_INDICATORS
 
     def api_incident(self) -> OpenAIStatusIncident | None:
-        """Return the highest-impact unresolved incident affecting an API component."""
-        candidates = [incident for incident in self.incidents if incident.affects_api]
+        """Return the highest-impact unresolved incident affecting an API/Codex component."""
+        candidates = [incident for incident in self.incidents if incident.affects_api_or_codex]
         if not candidates:
             return None
         return max(candidates, key=lambda incident: _IMPACT_RANK.get(incident.impact, 0))
 
     def degraded_api_component(self) -> OpenAIStatusComponent | None:
         for component in self.components:
-            if component.api_relevant and not component.operational:
+            if component.api_or_codex_relevant and not component.operational:
                 return component
         return None
+
+    @property
+    def api_degraded(self) -> bool:
+        """Whether an API/Codex-relevant surface is degraded (ignores the overall rollup)."""
+        return self.api_incident() is not None or self.degraded_api_component() is not None
+
+    @property
+    def api_indicator(self) -> str:
+        """Severity indicator scoped to API/Codex surfaces only (none/minor/major/critical)."""
+        ranks = [_IMPACT_RANK.get(incident.impact, 0) for incident in self.incidents if incident.affects_api_or_codex]
+        ranks += [
+            _COMPONENT_STATUS_RANK.get(component.status, 1)
+            for component in self.components
+            if component.api_or_codex_relevant and not component.operational
+        ]
+        if not ranks:
+            return _RANK_INDICATOR[0]
+        rank = max(ranks)
+        if rank == 0:
+            # A relevant incident with impact "none" still counts as a degradation.
+            rank = 1
+        return _RANK_INDICATOR.get(rank, "critical")
 
 
 @dataclass(frozen=True, slots=True)

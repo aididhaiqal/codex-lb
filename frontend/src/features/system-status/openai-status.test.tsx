@@ -10,6 +10,10 @@ import { renderWithProviders } from "@/test/utils";
 const CLEAR_STATUS: SystemStatus = {
   indicator: "none",
   description: "All Systems Operational",
+  apiAffected: false,
+  apiIndicator: "none",
+  apiIncident: null,
+  apiComponent: null,
   components: [],
   incidents: [],
   updatedAt: "2026-07-13T12:00:00Z",
@@ -17,10 +21,21 @@ const CLEAR_STATUS: SystemStatus = {
   statusPageUrl: "https://status.openai.com",
 };
 
-const MAJOR_STATUS: SystemStatus = {
+const CODEX_API_STATUS: SystemStatus = {
   indicator: "major",
   description: "Partial Outage",
-  components: [{ name: "API", status: "major_outage" }],
+  apiAffected: true,
+  apiIndicator: "major",
+  apiIncident: {
+    name: "Elevated errors on the Responses API",
+    impact: "major",
+    status: "investigating",
+    startedAt: "2026-07-13T10:00:00Z",
+    shortlink: "https://stspg.io/x",
+    affectedComponents: ["Codex API"],
+  },
+  apiComponent: { name: "Codex API", status: "partial_outage" },
+  components: [{ name: "Codex API", status: "partial_outage" }],
   incidents: [
     {
       name: "Elevated errors on the Responses API",
@@ -28,7 +43,31 @@ const MAJOR_STATUS: SystemStatus = {
       status: "investigating",
       startedAt: "2026-07-13T10:00:00Z",
       shortlink: "https://stspg.io/x",
-      affectedComponents: ["API"],
+      affectedComponents: ["Codex API"],
+    },
+  ],
+  updatedAt: "2026-07-13T12:00:00Z",
+  stale: false,
+  statusPageUrl: "https://status.openai.com",
+};
+
+// Overall rollup is degraded, but only ChatGPT-web is affected — codex-lb is fine.
+const CHATGPT_ONLY_STATUS: SystemStatus = {
+  indicator: "minor",
+  description: "Degraded Performance",
+  apiAffected: false,
+  apiIndicator: "none",
+  apiIncident: null,
+  apiComponent: null,
+  components: [{ name: "Conversations", status: "degraded_performance" }],
+  incidents: [
+    {
+      name: "ChatGPT web is slow",
+      impact: "minor",
+      status: "investigating",
+      startedAt: "2026-07-13T10:00:00Z",
+      shortlink: "https://stspg.io/y",
+      affectedComponents: ["Conversations"],
     },
   ],
   updatedAt: "2026-07-13T12:00:00Z",
@@ -52,20 +91,30 @@ describe("OpenAIStatusWidget", () => {
     expect(screen.queryByRole("status")).not.toBeInTheDocument();
   });
 
-  it("renders an incident banner when the API is degraded", async () => {
-    mockSystemStatus(MAJOR_STATUS);
+  it("renders an incident banner when the Codex/API surface is degraded", async () => {
+    mockSystemStatus(CODEX_API_STATUS);
 
     renderWithProviders(<OpenAIStatusWidget />);
 
     const banner = await screen.findByRole("status");
     expect(banner).toHaveTextContent("Elevated errors on the Responses API");
-    expect(banner).toHaveTextContent("API");
+    expect(banner).toHaveTextContent("Codex API");
     expect(banner).toHaveTextContent("status.openai.com");
     expect(banner).toHaveAttribute("href", "https://status.openai.com");
   });
 
+  it("shows the clear state (no banner) when only ChatGPT-web is degraded", async () => {
+    mockSystemStatus(CHATGPT_ONLY_STATUS);
+
+    renderWithProviders(<OpenAIStatusWidget />);
+
+    const pill = await screen.findByTitle(/OpenAI API:/i);
+    expect(pill).toBeInTheDocument();
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
+  });
+
   it("renders nothing when the snapshot is stale", async () => {
-    mockSystemStatus({ ...MAJOR_STATUS, stale: true });
+    mockSystemStatus({ ...CODEX_API_STATUS, stale: true });
 
     const { container } = renderWithProviders(<OpenAIStatusWidget />);
     await waitFor(() => {

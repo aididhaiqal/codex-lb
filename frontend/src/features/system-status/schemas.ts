@@ -15,8 +15,15 @@ export const SystemStatusIncidentSchema = z.object({
 });
 
 export const SystemStatusSchema = z.object({
+  // Overall Statuspage rollup across all OpenAI surfaces — informational only.
   indicator: z.string(),
   description: z.string(),
+  // API/Codex-scoped signal (excludes ChatGPT-web surfaces). The dashboard keys
+  // its banner on these, not on the overall rollup.
+  apiAffected: z.boolean(),
+  apiIndicator: z.string(),
+  apiIncident: SystemStatusIncidentSchema.nullable().optional(),
+  apiComponent: SystemStatusComponentSchema.nullable().optional(),
   components: z.array(SystemStatusComponentSchema),
   incidents: z.array(SystemStatusIncidentSchema),
   updatedAt: z.string().nullable().optional(),
@@ -26,5 +33,6 @@ export const SystemStatusSchema = z.object({
 
 export type SystemStatus = z.infer<typeof SystemStatusSchema>;
 export type SystemStatusIncident = z.infer<typeof SystemStatusIncidentSchema>;
+export type SystemStatusComponent = z.infer<typeof SystemStatusComponentSchema>;
 
-export const DEGRADED_INDICATORS = new Set(["minor", "major", "critical"]);
+export const CRITICAL_INDICATORS = new Set(["major", "critical"]);

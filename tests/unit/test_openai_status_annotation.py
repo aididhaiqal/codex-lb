@@ -36,6 +36,17 @@ _CHATGPT_INCIDENT = OpenAIStatusIncident(
     shortlink="https://stspg.io/y",
     component_names=("ChatGPT",),
 )
+_CODEX_API_COMPONENT = OpenAIStatusComponent(id="c_codex", name="Codex API", status="major_outage")
+_CODEX_API_INCIDENT = OpenAIStatusIncident(
+    id="i3",
+    name="Codex API degraded",
+    impact="major",
+    status="investigating",
+    started_at=None,
+    shortlink="https://stspg.io/z",
+    component_names=("Codex API",),
+)
+_CONVERSATIONS_COMPONENT = OpenAIStatusComponent(id="c_conv", name="Conversations", status="degraded_performance")
 
 
 def _seed(
@@ -115,8 +126,28 @@ def test_does_not_enrich_when_no_snapshot() -> None:
     assert openai_error("upstream_error", "Upstream error")["error"]["message"] == "Upstream error"
 
 
+def test_enriches_codex_api_incident() -> None:
+    _seed(indicator="major", components=(_CODEX_API_COMPONENT,), incidents=(_CODEX_API_INCIDENT,))
+    message = openai_error("server_error", "Upstream error: bad gateway")["error"]["message"]
+    assert 'OpenAI reports a major API incident: "Codex API degraded" (status.openai.com)' in message
+
+
 def test_does_not_enrich_chatgpt_only_incident() -> None:
     _seed(indicator="major", components=(_CHATGPT_COMPONENT,), incidents=(_CHATGPT_INCIDENT,))
+    assert openai_error("upstream_error", "Upstream error")["error"]["message"] == "Upstream error"
+
+
+def test_does_not_enrich_conversations_only_incident() -> None:
+    # Overall rollup is degraded (minor), but only ChatGPT-web "Conversations"
+    # is affected — codex-lb's upstream is unaffected, so no annotation.
+    _seed(indicator="minor", components=(_CONVERSATIONS_COMPONENT,))
+    assert openai_error("upstream_error", "Upstream error")["error"]["message"] == "Upstream error"
+
+
+def test_does_not_enrich_codex_in_chatgpt_desktop() -> None:
+    # "Codex in ChatGPT Desktop" mentions "codex" but the "chatgpt" exclusion wins.
+    component = OpenAIStatusComponent(id="c_desk", name="Codex in ChatGPT Desktop", status="major_outage")
+    _seed(indicator="major", components=(component,))
     assert openai_error("upstream_error", "Upstream error")["error"]["message"] == "Upstream error"
 
 
@@ -138,3 +169,66 @@ def test_is_upstream_attributable_matrix() -> None:
     assert is_upstream_attributable(error_code="insufficient_quota") is False
     assert is_upstream_attributable(error_code="invalid_request_error") is False
     assert is_upstream_attributable(error_code=None) is False
+
+
+def test_relevance_rule_matches_api_and_codex_but_not_chatgpt() -> None:
+    relevant = ["API", "Codex API", "Responses API", "Realtime API", "Compliance API"]
+    ignored = [
+        "ChatGPT",
+        "ChatGPT Work",
+        "Codex in ChatGPT Desktop",
+        "Conversations",
+        "Sites",
+        "Agent",
+        "Batch",
+        "Embeddings",
+    ]
+    for name in relevant:
+        component = OpenAIStatusComponent(id="c", name=name, status="major_outage")
+        assert component.api_or_codex_relevant is True, name
+        incident = OpenAIStatusIncident(
+            id="i",
+            name=f"{name} incident",
+            impact="major",
+            status="investigating",
+            started_at=None,
+            shortlink=None,
+            component_names=(name,),
+        )
+        assert incident.affects_api_or_codex is True, name
+    for name in ignored:
+        component = OpenAIStatusComponent(id="c", name=name, status="major_outage")
+        assert component.api_or_codex_relevant is False, name
+
+
+def test_api_indicator_reflects_worst_relevant_severity() -> None:
+    # A ChatGPT major_outage is ignored; the relevant Codex API major_outage
+    # escalates the API-scoped indicator to critical.
+    snapshot = OpenAIStatusSnapshot(
+        indicator="critical",  # overall rollup (informational)
+        description="",
+        components=(
+            OpenAIStatusComponent(id="c1", name="ChatGPT", status="major_outage"),
+            OpenAIStatusComponent(id="c2", name="Codex API", status="major_outage"),
+        ),
+        incidents=(),
+        fetched_at=utcnow(),
+    )
+    assert snapshot.api_degraded is True
+    assert snapshot.api_indicator == "critical"
+    degraded = snapshot.degraded_api_component()
+    assert degraded is not None
+    assert degraded.name == "Codex API"
+
+
+def test_api_degraded_false_for_chatgpt_only() -> None:
+    snapshot = OpenAIStatusSnapshot(
+        indicator="minor",
+        description="",
+        components=(_CONVERSATIONS_COMPONENT,),
+        incidents=(_CHATGPT_INCIDENT,),
+        fetched_at=utcnow(),
+    )
+    assert snapshot.api_degraded is False
+    assert snapshot.api_indicator == "none"
+    assert snapshot.api_incident() is None

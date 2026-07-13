@@ -2,17 +2,8 @@ import { useQuery } from "@tanstack/react-query";
 import { AlertTriangle, ExternalLink } from "lucide-react";
 
 import { getSystemStatus } from "@/features/system-status/api";
-import { DEGRADED_INDICATORS, type SystemStatus } from "@/features/system-status/schemas";
+import { CRITICAL_INDICATORS } from "@/features/system-status/schemas";
 import { cn } from "@/lib/utils";
-
-function affectedComponent(status: SystemStatus): string | null {
-  const incident = status.incidents[0];
-  if (incident && incident.affectedComponents.length > 0) {
-    return incident.affectedComponents[0];
-  }
-  const degraded = status.components.find((component) => component.status !== "operational");
-  return degraded?.name ?? null;
-}
 
 export function OpenAIStatusWidget() {
   const query = useQuery({
@@ -24,17 +15,19 @@ export function OpenAIStatusWidget() {
   });
 
   const status = query.data;
-  // Nothing trustworthy to show: no snapshot yet, a stale snapshot, or an
-  // unknown indicator. Stay invisible rather than assert a state we don't know.
-  if (!status || status.stale || status.indicator === "unknown") {
+  // Nothing trustworthy to show: no snapshot yet or a stale snapshot. Stay
+  // invisible rather than assert a state we don't know.
+  if (!status || status.stale) {
     return null;
   }
 
-  if (!DEGRADED_INDICATORS.has(status.indicator)) {
+  // Key on API/Codex-scoped degradation, not the overall rollup: a
+  // ChatGPT-web-only incident does not affect codex-lb, so show the clear state.
+  if (!status.apiAffected) {
     return (
       <span
         className="inline-flex items-center gap-1.5 rounded-md border border-border px-2 py-1 text-xs text-muted-foreground"
-        title={`OpenAI: ${status.description || "All Systems Operational"}`}
+        title={`OpenAI API: ${status.description || "All Systems Operational"}`}
       >
         <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" aria-hidden />
         OpenAI
@@ -42,10 +35,10 @@ export function OpenAIStatusWidget() {
     );
   }
 
-  const incident = status.incidents[0];
-  const critical = status.indicator === "major" || status.indicator === "critical";
-  const title = incident?.name || status.description || "OpenAI service degradation";
-  const component = affectedComponent(status);
+  const incident = status.apiIncident ?? null;
+  const critical = CRITICAL_INDICATORS.has(status.apiIndicator);
+  const title = incident?.name || "OpenAI API service degradation";
+  const component = status.apiComponent?.name ?? incident?.affectedComponents[0] ?? null;
 
   return (
     <a
@@ -63,7 +56,7 @@ export function OpenAIStatusWidget() {
     >
       <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
       <span className="min-w-0">
-        <span className="font-semibold">OpenAI incident: </span>
+        <span className="font-semibold">OpenAI API incident: </span>
         <span>{title}</span>
         {component ? <span className="opacity-80"> · {component}</span> : null}
         <span className="ml-1 inline-flex items-center gap-0.5 whitespace-nowrap underline underline-offset-2">

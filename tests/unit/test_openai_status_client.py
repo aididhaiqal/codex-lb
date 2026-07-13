@@ -58,10 +58,10 @@ def test_parse_extracts_indicator_components_and_unresolved_incidents() -> None:
     names = [component.name for component in snapshot.components]
     assert names == ["API", "Realtime API", "ChatGPT"]
     api_component = next(component for component in snapshot.components if component.name == "API")
-    assert api_component.api_relevant is True
+    assert api_component.api_or_codex_relevant is True
     assert api_component.operational is False
     chatgpt = next(component for component in snapshot.components if component.name == "ChatGPT")
-    assert chatgpt.api_relevant is False
+    assert chatgpt.api_or_codex_relevant is False
 
     # Only the unresolved incident survives.
     assert len(snapshot.incidents) == 1
@@ -71,7 +71,7 @@ def test_parse_extracts_indicator_components_and_unresolved_incidents() -> None:
     assert incident.status == "investigating"
     assert incident.shortlink == "https://stspg.io/abc"
     assert incident.component_names == ("API",)
-    assert incident.affects_api is True
+    assert incident.affects_api_or_codex is True
 
     assert snapshot.api_incident() is incident
 
