@@ -5,6 +5,7 @@ import { AlertMessage } from "@/components/alert-message";
 import { Button } from "@/components/ui/button";
 import { listAccounts } from "@/features/accounts/api";
 import { useReports } from "@/features/reports/hooks/use-reports";
+import { OpenAIStatusWidget } from "@/features/system-status/openai-status";
 import { getErrorMessageOrNull } from "@/utils/errors";
 import { ReportsFilters, type ReportsFiltersState } from "./reports-filters";
 import { ReportsSummaryCards } from "./reports-summary-cards";
@@ -192,6 +193,8 @@ export function ReportsPage({ initialFilters }: ReportsPageProps = {}) {
           Usage history by date range
         </p>
       </div>
+
+      <OpenAIStatusWidget />
 
       <ReportsFilters
         filters={filters}
