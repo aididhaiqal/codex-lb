@@ -27,6 +27,8 @@ import {
 } from "@/features/apis/schemas";
 import type { ModelSource } from "@/features/model-sources/schemas";
 import { ModelSourceSchema } from "@/features/model-sources/schemas";
+import type { SystemStatus } from "@/features/system-status/schemas";
+import { SystemStatusSchema } from "@/features/system-status/schemas";
 import type { AuthSession } from "@/features/auth/schemas";
 import { AuthSessionSchema } from "@/features/auth/schemas";
 import type {
@@ -782,6 +784,19 @@ export function createApiKeyUsage7Day(
 		cachedInputTokens: 45_000,
 		totalRequests: 350,
 		totalCostUsd: 2.47,
+		...overrides,
+	});
+}
+
+export function createSystemStatus(overrides: Partial<SystemStatus> = {}): SystemStatus {
+	return SystemStatusSchema.parse({
+		indicator: "none",
+		description: "All Systems Operational",
+		components: [],
+		incidents: [],
+		updatedAt: "2026-07-13T12:00:00Z",
+		stale: false,
+		statusPageUrl: "https://status.openai.com",
 		...overrides,
 	});
 }

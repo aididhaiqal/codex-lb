@@ -24,6 +24,8 @@ const EXPECTED_ENDPOINTS = [
 	"GET /health",
 	// runtime
 	"GET /api/runtime/version",
+	// system status
+	"GET /api/system-status",
 	// dashboard
 	"GET /api/dashboard/overview",
 	"GET /api/dashboard/projections",

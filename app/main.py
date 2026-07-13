@@ -40,6 +40,7 @@ from app.core.middleware import (
 from app.core.middleware.dashboard_gzip import add_dashboard_gzip_middleware
 from app.core.middleware.inflight import InFlightMiddleware
 from app.core.openai.model_refresh_scheduler import build_model_refresh_scheduler
+from app.core.openai.status_scheduler import build_openai_status_scheduler
 from app.core.resilience.backpressure import BackpressureMiddleware
 from app.core.resilience.bulkhead import BulkheadMiddleware, get_bulkhead
 from app.core.resilience.memory_monitor import configure as configure_memory_monitor
@@ -81,6 +82,7 @@ from app.modules.runtime import api as runtime_api
 from app.modules.settings import api as settings_api
 from app.modules.sticky_sessions import api as sticky_sessions_api
 from app.modules.sticky_sessions.cleanup_scheduler import build_sticky_session_cleanup_scheduler
+from app.modules.system_status import api as system_status_api
 from app.modules.usage import api as usage_api
 from app.modules.usage.additional_quota_keys import reload_additional_quota_registry
 
@@ -277,6 +279,7 @@ async def lifespan(app: FastAPI):
     rate_limit_reset_credits_scheduler = build_rate_limit_reset_credits_scheduler()
     account_usage_rollup_scheduler = build_account_usage_rollup_scheduler()
     data_retention_scheduler = build_data_retention_scheduler()
+    openai_status_scheduler = build_openai_status_scheduler()
     await usage_scheduler.start()
     await api_key_limit_reset_scheduler.start()
     await model_scheduler.start()
@@ -287,6 +290,7 @@ async def lifespan(app: FastAPI):
     await rate_limit_reset_credits_scheduler.start()
     await account_usage_rollup_scheduler.start()
     await data_retention_scheduler.start()
+    await openai_status_scheduler.start()
     if settings.metrics_enabled and PROMETHEUS_AVAILABLE:
         import uvicorn
 
@@ -461,6 +465,7 @@ async def lifespan(app: FastAPI):
         await rate_limit_reset_credits_scheduler.stop()
         await account_usage_rollup_scheduler.stop()
         await data_retention_scheduler.stop()
+        await openai_status_scheduler.stop()
         try:
             await close_http_client()
         finally:
@@ -549,6 +554,7 @@ def create_app() -> FastAPI:
     app.include_router(automations_api.router)
     app.include_router(api_keys_api.router)
     app.include_router(model_sources_api.router)
+    app.include_router(system_status_api.router)
     app.include_router(health_api.router)
 
     static_dir = Path(__file__).parent / "static"

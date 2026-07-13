@@ -28,6 +28,7 @@ import {
   type AccountSummary,
   type OverviewTimeframe,
 } from "@/features/dashboard/schemas";
+import { OpenAIStatusWidget } from "@/features/system-status/openai-status";
 import { useDashboardPreferencesStore } from "@/hooks/use-dashboard-preferences";
 import { useThemeStore } from "@/hooks/use-theme";
 import { REQUEST_STATUS_LABELS } from "@/utils/constants";
@@ -188,6 +189,7 @@ export function DashboardPage() {
           </p>
         </div>
         <div className="flex items-center gap-2">
+          <OpenAIStatusWidget />
           <OverviewTimeframeSelect
             value={overviewTimeframe}
             onChange={handleOverviewTimeframeChange}

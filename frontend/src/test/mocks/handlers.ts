@@ -32,6 +32,7 @@ import {
   createQuotaPlannerSettings,
   createQuotaPlannerWarmupActionResponse,
   createRequestLogFilterOptions,
+  createSystemStatus,
   createUpstreamProxyAdmin,
   createRequestLogsResponse,
   type DashboardAuthSession,
@@ -720,6 +721,10 @@ export const handlers = [
       source: "github",
       releaseUrl: "https://github.com/Soju06/codex-lb/releases/latest",
     });
+  }),
+
+  http.get("/api/system-status", () => {
+    return HttpResponse.json(createSystemStatus());
   }),
 
   http.get("/api/dashboard/overview", () => {

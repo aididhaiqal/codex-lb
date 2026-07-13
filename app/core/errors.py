@@ -4,6 +4,8 @@ import re
 import time
 from typing import Literal, NotRequired, TypedDict
 
+from app.core.openai.status_annotation import maybe_annotate_upstream_error
+
 
 class OpenAIErrorDetail(TypedDict, total=False):
     message: str
@@ -48,7 +50,13 @@ PREVIOUS_RESPONSE_STALE_MESSAGE = "Upstream previous response anchor expired; re
 
 
 def openai_error(code: str, message: str, error_type: str = "server_error") -> OpenAIErrorEnvelope:
-    return {"error": {"message": message, "type": error_type, "code": code}}
+    # Single funnel for every client-visible error message (non-stream envelopes
+    # and, via response_failed_event, streaming response.failed events). The
+    # advisory OpenAI-status note is appended here so it reaches both without
+    # touching the ~80 call sites; it is a strictly gated no-op for anything that
+    # is not an upstream-attributable failure during an active API incident.
+    envelope: OpenAIErrorEnvelope = {"error": {"message": message, "type": error_type, "code": code}}
+    return maybe_annotate_upstream_error(envelope, error_code=code)
 
 
 def dashboard_error(code: str, message: str) -> DashboardErrorEnvelope:

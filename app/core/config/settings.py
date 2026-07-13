@@ -195,6 +195,11 @@ class Settings(BaseSettings):
     usage_fetch_max_retries: int = 2
     usage_refresh_enabled: bool = True
     usage_refresh_interval_seconds: int = Field(default=60, gt=0)
+    # OpenAI status-page awareness: poll status.openai.com so the dashboard can
+    # surface incidents and downstream upstream-error messages can note them.
+    openai_status_enabled: bool = True
+    openai_status_refresh_interval_seconds: int = Field(default=60, gt=0)
+    openai_status_fetch_timeout_seconds: float = Field(default=5.0, gt=0)
     rate_limit_reset_credits_refresh_interval_seconds: int = Field(default=60, gt=0)
     openai_cache_affinity_max_age_seconds: int = Field(default=1800, gt=0)
     warmup_model: str = "gpt-5.4-mini"
